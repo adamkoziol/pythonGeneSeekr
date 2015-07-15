@@ -18,9 +18,16 @@ from argparse import ArgumentParser
 
 parser = ArgumentParser(description='Performs blast analyses to determine presence of custom targets')
 parser.add_argument('-p', '--path', required=False,
-                    default='/home/blais/PycharmProjects/pythonGeneSeekr/', help='Specify path for custom folder locations')
+                    default='/home/blais/PycharmProjects/pythonGeneSeekr/',
+                    help='Specify path for custom folder locations')
 parser.add_argument('-c', '--cutoff', required=False, default=0.8,
                     help='The identity cutoff value for BLAST matches. Default is 0.8')
+parser.add_argument('-s', '--sequencePath', required=False,
+                    default='/home/blais/PycharmProjects/pythonGeneSeekr/sequences',
+                    help='The location of the query sequence files')
+parser.add_argument('-t', '--targetPath', required=False,
+                    default='/home/blais/PycharmProjects/pythonGeneSeekr/Organism',
+                    help='The location of the target files')
 
 # Get the arguments into a list
 args = vars(parser.parse_args())
@@ -28,10 +35,16 @@ args = vars(parser.parse_args())
 # Define variables from the arguments - there may be a more streamlined way to do this
 path = args['path']
 cutoff = float(args['cutoff'])
+sequencePath = args['sequencePath']
+targetPath = args['targetPath']
 
-# Add trailing slashes to the path variable to ensure consistent formatting
+# Add trailing slashes to the path variables to ensure consistent formatting
 if path[-1] != "/":
     path += "/"
+if sequencePath[-1] != "/":
+    sequencePath += "/"
+if targetPath[-1] != "/":
+    targetPath += "/"
 
 
 def make_path(inPath):
@@ -113,11 +126,15 @@ def makedbthreads(fastas):
 def xmlout(fasta, genome):
     """Parses variables from supplied tuples? dictionaries?"""
     path = re.search('(.+)\/(.+)\/(.+?)$', genome)
+    # print path.group(2)
     gene = fasta.split('/')[-1]  # split file from path, could use os.path.split
     genename = gene.split('.')[0]
     genomename = path.group(3).split('.')[0]
+    # print genomename
     # Create the out variable containing the path and name of BLAST output file
-    out = "%s/tmp/%s.%s.xml" % (path.group(1), genomename, genename)  # Changed from dictionary to tuple
+    tmpPath = "%s/%s" % (path.group(1), path.group(2))
+    make_path("%s/tmp" % tmpPath)
+    out = "%s/tmp/%s.%s.xml" % (tmpPath, genomename, genename)  # Changed from dictionary to tuple
     # Return the parsed variables
     return path, gene, genename, genomename, out
 
@@ -287,23 +304,35 @@ def organismChooser(path):
     """Allows the user to choose which organism to be used in the analyses"""
     # Initialise a count variable to be used in extracting the desired entry from a list of organisms
     count = 0
-    # Get a list of the organisms in the Organism subfolder
-    orgList = glob("%sOrganism/*" % path)
-    # Iterate through the sorted list
-    for folder in sorted(orgList):
-        # Ensure that folder is, in actuality, a folder
-        if os.path.isdir(folder):
-            # Print out the folder names and the count
-            print "[%s]: %s" % (count, os.path.split(folder)[1])
-            count += 1
-    # Get the user input - the number entered corresponds to the list index
-    response = input("Please select an organism: ")
-    # Get the organism path into a variable
-    organism = sorted(orgList)[int(response)]
-    organismName = os.path.split(organism)[1]
-    # Put the query and quality genes into lists
-    queryGenes = glob("%s/query_genes/*.fa" % organism)
-    qualityGenes = glob("%s/qualityTest/*.tfa" % organism)
+    # Check to see if the supplied targetPath has .fa files - if it does, then the default directory structure is probably
+    # not being followed, so the target files will be in targetPath
+    foldertest = glob("%s/*.fa" % targetPath)
+    if foldertest:
+        # Set the required variables as necessary
+        # queryGenes are presumably the genes found by foldertest
+        queryGenes = foldertest
+        # There are likely not going to be qualityGenes included in a custom analysis
+        qualityGenes = []
+        # Organism name is simply the name of the folder containing the targets
+        organismName = targetPath.split("/")[-2]
+    else:
+        # Get a list of the organisms in the (default) Organism subfolder
+        orgList = glob("%sOrganism/*" % path)
+        # Iterate through the sorted list
+        for folder in sorted(orgList):
+            # Ensure that folder is, in actuality, a folder
+            if os.path.isdir(folder):
+                # Print out the folder names and the count
+                print "[%s]: %s" % (count, os.path.split(folder)[1])
+                count += 1
+        # Get the user input - the number entered corresponds to the list index
+        response = input("Please select an organism: ")
+        # Get the organism path into a variable
+        organism = sorted(orgList)[int(response)]
+        organismName = os.path.split(organism)[1]
+        # Put the query and quality genes into lists
+        queryGenes = glob("%s/query_genes/*.fa" % organism)
+        qualityGenes = glob("%s/qualityTest/*.tfa" % organism)
     return queryGenes, qualityGenes, organismName
 
 
@@ -327,7 +356,7 @@ def blaster():
     queryGenes, qualityGenes, organismName = organismChooser(path)
     # Get the genome files into a list - note that they must be in the "sequences" subfolder of the path,
     # and the must have a file extension beginning with ".fa"
-    strains = glob("%ssequences/*.fa*" % path)
+    strains = glob("%s*.fa*" % sequencePath)
     # Create the threads for the BLAST analysis
     for i in range(len(strains)):
         threads = runblast(blastqueue)
@@ -354,7 +383,8 @@ def blaster():
     types = {}
     # Populate types
     types["query"] = queryGenes
-    types["quality"] = qualityGenes
+    if qualityGenes:
+        types["quality"] = qualityGenes
     # Loop through the analysis types, and make outputs as required
     for analysisType in types:
         # Initialise variables
@@ -390,6 +420,7 @@ def blaster():
                     else:
                         row += ',N'
         # Open the csv report in the appropriate location - add the organism name and the date to keep reports unique
+        make_path("%sreports" % path)
         with open("%sreports/%s_%s_results_%s.csv" % (path, organismName, analysisType, time.strftime("%Y.%m.%d.%H.%M.%S")), 'wb') as csvfile:
             # Write the header and the rows
             csvfile.write(csvheader)
