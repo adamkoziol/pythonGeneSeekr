@@ -88,7 +88,7 @@ def makeblastdb(dqueue):
         # print nhr
         FNULL = open(os.devnull, 'w')  # define /dev/null
         if not os.path.isfile(str(nhr)):  # if check for already existing dbs
-            subprocess.Popen(shlex.split("makeblastdb -in %s -dbtype nucl" % fastapath))
+            subprocess.Popen(shlex.split("makeblastdb -in %s -dbtype nucl -out %s" % (fastapath, db)))
             # make blastdb
             dotter()
         dqueue.task_done()  # signals to dqueue job is done
