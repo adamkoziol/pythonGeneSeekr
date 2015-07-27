@@ -83,8 +83,8 @@ def makeblastdb(dqueue):
     while True:  # while daemon
         fastapath = dqueue.get()  # grabs fastapath from dqueue
         # remove the path and the file extension for easier future globbing
-        # db = fastapath.split(".")[0]
-        nhr = "%s.nhr" % fastapath  # add nhr for searching
+        db = fastapath.split(".")[0]
+        nhr = "%s.nhr" % db  # add nhr for searching
         # print nhr
         FNULL = open(os.devnull, 'w')  # define /dev/null
         if not os.path.isfile(str(nhr)):  # if check for already existing dbs
@@ -248,7 +248,8 @@ class runblast(threading.Thread):
                 # Removed perc_identity=percentIdentity from the call, as this allows more flexibility for parsing files
                 # with different cutoff values - if I want to re-analyse a search with a lower cutoff, I won't have to
                 # re-perform the BLAST search each time
-                blastn = NcbiblastnCommandline(query=genome, db=fasta, evalue=0.1, outfmt=5)
+                db = fasta.split(".")[0]
+                blastn = NcbiblastnCommandline(query=genome, db=db, evalue=0.1, outfmt=5)
                 # Note that there is no output file specified -  the search results are currently stored in stdout
                 stdout, stderr = blastn()
                 # Search stdout for matches - if the term Hsp appears (the .find function will NOT
