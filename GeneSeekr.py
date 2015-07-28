@@ -75,7 +75,7 @@ def dotter():
         sys.stdout.write('.')
         count += 1
     else:
-        sys.stdout.write('\n[%s].' % (time.strftime("%H:%M:%S")))
+        sys.stdout.write('\n[%s] .' % (time.strftime("%H:%M:%S")))
         count = 1
 
 
@@ -88,7 +88,7 @@ def makeblastdb(dqueue):
         # print nhr
         FNULL = open(os.devnull, 'w')  # define /dev/null
         if not os.path.isfile(str(nhr)):  # if check for already existing dbs
-            subprocess.Popen(shlex.split("makeblastdb -in %s -dbtype nucl -out %s" % (fastapath, db)))
+            subprocess.Popen(shlex.split("makeblastdb -in %s -dbtype nucl -out %s" % (fastapath, db)), stdout=FNULL, stderr=FNULL)
             # make blastdb
             dotter()
         dqueue.task_done()  # signals to dqueue job is done
@@ -125,14 +125,17 @@ def makedbthreads(fastas):
 
 def xmlout(fasta, genome):
     """Parses variables from supplied tuples? dictionaries?"""
-    path = re.search('(.+)\/(.+)\/(.+?)$', genome)
+    path = genome.split("/")
+    # path = re.search('(.+)\/(.+)\/(.+?)$', genome)
+    # print path
     # print path.group(2)
     gene = fasta.split('/')[-1]  # split file from path, could use os.path.split
     genename = gene.split('.')[0]
-    genomename = path.group(3).split('.')[0]
+    genomename = path[-1].split('.')[0]
     # print genomename
     # Create the out variable containing the path and name of BLAST output file
-    tmpPath = "%s/%s" % (path.group(1), path.group(2))
+    tmpPath = path[:-2]
+    # tmpPath = "%s/%s" % (path.group(1), path.group(2))
     make_path("%s/tmp" % tmpPath)
     out = "%s/tmp/%s.%s.xml" % (tmpPath, genomename, genename)  # Changed from dictionary to tuple
     # Return the parsed variables
@@ -235,7 +238,7 @@ class runblast(threading.Thread):
             #Precaution
             threadlock.acquire()
             # Add the appropriate variables to blast path
-            blastpath.append((out, path.group(3), gene, genename,))  # tuple-list
+            blastpath.append((out, path[-1], gene, genename,))  # tuple-list
             threadlock.release()
             # Checks to see if this BLAST search has previously been performed
             if not os.path.isfile(out):
@@ -307,7 +310,7 @@ def organismChooser(path):
     count = 0
     # Check to see if the supplied targetPath has .fa files - if it does, then the default directory structure is probably
     # not being followed, so the target files will be in targetPath
-    foldertest = glob("%s/*.fa" % targetPath)
+    foldertest = glob("%s/*.fa*" % targetPath)
     if foldertest:
         # Set the required variables as necessary
         # queryGenes are presumably the genes found by foldertest
@@ -374,7 +377,7 @@ def blaster():
         makedbthreads(qualityGenes)
     print "\n[%s] BLAST database(s) created" % (time.strftime("%H:%M:%S"))
     print "[%s] Now performing and parsing BLAST database searches" % (time.strftime("%H:%M:%S"))
-    sys.stdout.write('[%s]' % (time.strftime("%H:%M:%S")))
+    sys.stdout.write('[%s] ' % (time.strftime("%H:%M:%S")))
     # Make blastn threads and retrieve xml file locations
     blastnthreads(queryGenes, strains, "query")
     # qualityGenes optional
