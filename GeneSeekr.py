@@ -134,10 +134,9 @@ def xmlout(fasta, genome):
     return path, gene, genename, genomename, out
 
 
-def blastparse(blast_handle, genome, gene, analysisType):
+def blastparse(blast_handle, genome, gene, analysisType, cutoff):
     """Parses BLAST results, and populates a dictionary with the results"""
     global plusdict
-    global cutoff
     records = NCBIXML.parse(blast_handle)   # Open record from memory-mapped file
     dotter()
     incomplete = []
@@ -232,10 +231,10 @@ class runblast(threading.Thread):
             # Add the appropriate variables to blast path
             blastpath.append((out, path[-1], gene, genename,))  # tuple-list
             try:
-                plusdict[genome][genename] = []
+                plusdict[genomename][genename] = {analysisType: 0}
             except KeyError:
-                plusdict[genome] = {}
-                plusdict[genome][genename] = []
+                plusdict[genomename] = {}
+                plusdict[genomename][genename] = {analysisType: 0}
             threadlock.release()
             # Checks to see if this BLAST search has previously been performed
             if not os.path.isfile(out):
@@ -256,7 +255,7 @@ class runblast(threading.Thread):
                 # return -1), a match has been found, and stdout is written to file
                 if stdout.find('Hsp') != -1:
                     blast_handle = StringIO(stdout)  # Convert string to IO object for use in SearchIO using StringIO
-                    blastparse(blast_handle, genome, genename, analysisType)  # parse the data already in memory
+                    blastparse(blast_handle, genome, genename, analysisType, cutoff)  # parse the data already in memory
                     file.write(stdout)  # write the result
                 # Close the file
                 file.close()
@@ -267,7 +266,7 @@ class runblast(threading.Thread):
                 # Read the file into memory
                 mm = mmap.mmap(handle.fileno(), 0, access=mmap.ACCESS_READ)
                 # Parse the file in a multithreaded manner
-                parsequeue.put((out, genome, genename, mm, analysisType))
+                parsequeue.put((out, genome, genename, mm, analysisType, cutoff))
             # Join all the threads
             parsequeue.join()
             # Error catching?
@@ -295,8 +294,8 @@ class multiparser(threading.Thread): # Had to convert this to a class to integra
     def run(self):
         while True:  # General Loop
             global plusdict, genedict  # Import global elements to populate, there may be a better way to do this
-            xml, genome, gene, mm, analysisType = self.parsequeue.get()  # Retrieve dara from queue
-            blastparse(mm, genome, gene, analysisType)
+            xml, genome, gene, mm, analysisType, cutoff = self.parsequeue.get()  # Retrieve dara from queue
+            blastparse(mm, genome, gene, analysisType, cutoff)
             mm.close()
             self.parsequeue.task_done()
 
@@ -408,19 +407,18 @@ def blaster(path, cutoff, sequencePath, targetPath):
                 if genename not in csvheader:
                     # Append the gene name in a comma-separated format
                     csvheader += ',' + genename
-                    # Check to ensure that the analysis type is in plusdict
-                    if analysisType in plusdict[genomerow][genename]:
-                        # Format the results - if the percent ID is less than 100
-                        if float(plusdict[genomerow][genename][analysisType]) < 100:
-                        #  Append the percent ID (and a "%") to the row variable
-                            row += ',' + str(plusdict[genomerow][genename][analysisType]) + "%"
-                        # Otherwise, add a "+" to represent a 100% match
-                        else:
-                            row += ',+'
-                    # If the analysisType does not exist in the dictionary, then there were no matches.
+                    # Format the results - if the percent ID is less than 100
+                    identity = plusdict[genomerow][genename][analysisType]
+                    if cutoff * 100 < float(identity) < 100:
+                    #  Append the percent ID (and a "%") to the row variable
+                        row += ',' + str(plusdict[genomerow][genename][analysisType]) + "%"
+                    # Otherwise, add a "+" to represent a 100% match
+                    elif identity == 0:
+                        row += ',N'
+                    # If the analysisType is 0 in the dictionary, then there were no matches.
                     # This is shown by an 'N'
                     else:
-                        row += ',N'
+                        row += ',+'
         # Open the csv report in the appropriate location - add the organism name and the date to keep reports unique
         make_path("%sreports" % path)
         with open("%sreports/%s_%s_results_%s.csv" % (path, organismName, analysisType, time.strftime("%Y.%m.%d.%H.%M.%S")), 'wb') as csvfile:
