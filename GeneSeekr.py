@@ -33,19 +33,11 @@ parser.add_argument('-t', '--targetPath', required=False,
 args = vars(parser.parse_args())
 
 # Define variables from the arguments - there may be a more streamlined way to do this
-path = args['path']
+# Add trailing slashes to the path variables to ensure consistent formatting (os.path.join)
+path = os.path.join(args['path'], "")
 cutoff = float(args['cutoff'])
-sequencePath = args['sequencePath']
-targetPath = args['targetPath']
-
-# Add trailing slashes to the path variables to ensure consistent formatting
-if path[-1] != "/":
-    path += "/"
-if sequencePath[-1] != "/":
-    sequencePath += "/"
-if targetPath[-1] != "/":
-    targetPath += "/"
-
+sequencePath = os.path.join(args['sequencePath'], "")
+targetPath = os.path.join(args['targetPath'], "")
 
 def make_path(inPath):
     """from: http://stackoverflow.com/questions/273192/check-if-a-directory-exists-and-create-it-if-necessary \
@@ -100,7 +92,7 @@ blastqueue = Queue()
 parsequeue = Queue()
 testqueue = Queue()
 plusqueue = Queue()
-plusdict = defaultdict(make_dict)
+plusdict = {}
 genedict = defaultdict(list)
 blastpath = []
 # threadlock, useful for overcoming GIL
@@ -134,7 +126,7 @@ def xmlout(fasta, genome):
     genomename = path[-1].split('.')[0]
     # print genomename
     # Create the out variable containing the path and name of BLAST output file
-    tmpPath = path[:-2]
+    tmpPath = path[0]
     # tmpPath = "%s/%s" % (path.group(1), path.group(2))
     make_path("%s/tmp" % tmpPath)
     out = "%s/tmp/%s.%s.xml" % (tmpPath, genomename, genename)  # Changed from dictionary to tuple
@@ -232,13 +224,18 @@ class runblast(threading.Thread):
 
     def run(self):
         while True:
-            global blastpath, plusdict, cutoff  # global varibles, might be a better way to pipe information
-            genome, fasta, blastexist, analysisType = self.blastqueue.get()  # retrieve variables from queue
+            global blastpath, plusdict  # global varibles, might be a better way to pipe information
+            genome, fasta, blastexist, analysisType, cutoff = self.blastqueue.get()  # retrieve variables from queue
             path, gene, genename, genomename, out = xmlout(fasta, genome)  # retrieve from string splitter
             #Precaution
             threadlock.acquire()
             # Add the appropriate variables to blast path
             blastpath.append((out, path[-1], gene, genename,))  # tuple-list
+            try:
+                plusdict[genome][genename] = []
+            except KeyError:
+                plusdict[genome] = {}
+                plusdict[genome][genename] = []
             threadlock.release()
             # Checks to see if this BLAST search has previously been performed
             if not os.path.isfile(out):
@@ -279,14 +276,14 @@ class runblast(threading.Thread):
             self.blastqueue.task_done()
 
 
-def blastnthreads(fastas, genomes, analysisType):
+def blastnthreads(fastas, genomes, analysisType, cutoff):
     """Setup and create  threads for blastn and xml path"""
     blastexist = {}
     # Create threads for each gene, genome combination
     for genome in genomes:
         for fasta in fastas:
             # Add the appropriate variables to the threads
-            blastqueue.put((genome, fasta, blastexist, analysisType))
+            blastqueue.put((genome, fasta, blastexist, analysisType, cutoff))
         blastqueue.join()
 
 
@@ -304,7 +301,7 @@ class multiparser(threading.Thread): # Had to convert this to a class to integra
             self.parsequeue.task_done()
 
 
-def organismChooser(path):
+def organismChooser(path,targetPath):
     """Allows the user to choose which organism to be used in the analyses"""
     # Initialise a count variable to be used in extracting the desired entry from a list of organisms
     count = 0
@@ -340,7 +337,7 @@ def organismChooser(path):
     return queryGenes, qualityGenes, organismName
 
 
-def blaster():
+def blaster(path, cutoff, sequencePath, targetPath):
     """
     The blaster function is the stack manager of the module
     markers are the the target fasta folder that with be db'd and BLAST'd against strains folder
@@ -357,7 +354,7 @@ def blaster():
     blastpath = []
     # Run organism chooser to allow the user to choose which databases to use
     # returns the organism name, and lists of
-    queryGenes, qualityGenes, organismName = organismChooser(path)
+    queryGenes, qualityGenes, organismName = organismChooser(path, targetPath)
     # Get the genome files into a list - note that they must be in the "sequences" subfolder of the path,
     # and the must have a file extension beginning with ".fa"
     strains = glob("%s*.fa*" % sequencePath)
@@ -379,16 +376,17 @@ def blaster():
     print "[%s] Now performing and parsing BLAST database searches" % (time.strftime("%H:%M:%S"))
     sys.stdout.write('[%s] ' % (time.strftime("%H:%M:%S")))
     # Make blastn threads and retrieve xml file locations
-    blastnthreads(queryGenes, strains, "query")
+    blastnthreads(queryGenes, strains, "query", cutoff)
     # qualityGenes optional
     if qualityGenes:
-        blastnthreads(qualityGenes, strains, "quality")
+        blastnthreads(qualityGenes, strains, "quality", cutoff)
     # Initialise types dictionary
     types = {}
     # Populate types
     types["query"] = queryGenes
     if qualityGenes:
         types["quality"] = qualityGenes
+    csvheader = ''
     # Loop through the analysis types, and make outputs as required
     for analysisType in types:
         # Initialise variables
@@ -436,4 +434,4 @@ def blaster():
           % (time.strftime("%H:%M:%S"), end, end/float(len(strains)))
 
 # Run the blaster function
-blaster()
+blaster(path, cutoff, sequencePath, targetPath)
