@@ -117,19 +117,16 @@ def makedbthreads(fastas):
 
 def xmlout(fasta, genome):
     """Parses variables from supplied tuples? dictionaries?"""
-    path = genome.split("/")
-    # path = re.search('(.+)\/(.+)\/(.+?)$', genome)
-    # print path
-    # print path.group(2)
+    global path
+    pathString = genome.split("/")
+    # Create the necessary variables from the supplied strings
     gene = fasta.split('/')[-1]  # split file from path, could use os.path.split
     genename = gene.split('.')[0]
-    genomename = path[-1].split('.')[0]
-    # print genomename
+    genomename = pathString[-1].split('.')[0]
     # Create the out variable containing the path and name of BLAST output file
-    tmpPath = path[0]
-    # tmpPath = "%s/%s" % (path.group(1), path.group(2))
-    make_path("%s/tmp" % tmpPath)
-    out = "%s/tmp/%s.%s.xml" % (tmpPath, genomename, genename)  # Changed from dictionary to tuple
+    tmpPath = "%stmp" % path
+    make_path(tmpPath)
+    out = "%s/%s.%s.xml" % (tmpPath, genomename, genename)  # Changed from dictionary to tuple
     # Return the parsed variables
     return path, gene, genename, genomename, out
 
@@ -385,6 +382,7 @@ def blaster(path, cutoff, sequencePath, targetPath):
     types["query"] = queryGenes
     if qualityGenes:
         types["quality"] = qualityGenes
+    # print json.dumps(plusdict, sort_keys=True, indent=4, separators=(',', ': '))
     csvheader = ''
     # Loop through the analysis types, and make outputs as required
     for analysisType in types:
