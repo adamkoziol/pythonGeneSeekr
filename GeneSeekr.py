@@ -80,7 +80,7 @@ def makeblastdb(dqueue):
         # print nhr
         FNULL = open(os.devnull, 'w')  # define /dev/null
         if not os.path.isfile(str(nhr)):  # if check for already existing dbs
-            subprocess.Popen(shlex.split("makeblastdb -in %s -dbtype nucl -out %s" % (fastapath, db)), stdout=FNULL, stderr=FNULL)
+            subprocess.call(shlex.split("makeblastdb -in %s -dbtype nucl -out %s" % (fastapath, db)), stdout=FNULL, stderr=FNULL)
             # make blastdb
             dotter()
         dqueue.task_done()  # signals to dqueue job is done
@@ -368,6 +368,7 @@ def blaster(path, cutoff, sequencePath, targetPath):
     # Quality test genes are optional, so only run the qualityGenes if the folder exists
     if qualityGenes:
         makedbthreads(qualityGenes)
+    # There appears to be a race condition going on with the creation of the BLAST databases and the running of BLAST.
     print "\n[%s] BLAST database(s) created" % (time.strftime("%H:%M:%S"))
     print "[%s] Now performing and parsing BLAST database searches" % (time.strftime("%H:%M:%S"))
     sys.stdout.write('[%s] ' % (time.strftime("%H:%M:%S")))
