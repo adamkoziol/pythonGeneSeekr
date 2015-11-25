@@ -80,7 +80,7 @@ def makeblastdb(dqueue):
         # print nhr
         FNULL = open(os.devnull, 'w')  # define /dev/null
         if not os.path.isfile(str(nhr)):  # if check for already existing dbs
-            subprocess.Popen(shlex.split("makeblastdb -in %s -dbtype nucl -out %s" % (fastapath, db)), stdout=FNULL, stderr=FNULL)
+            subprocess.call(shlex.split("makeblastdb -in %s -dbtype nucl -out %s" % (fastapath, db)), stdout=FNULL, stderr=FNULL)
             # make blastdb
             dotter()
         dqueue.task_done()  # signals to dqueue job is done
@@ -117,19 +117,16 @@ def makedbthreads(fastas):
 
 def xmlout(fasta, genome):
     """Parses variables from supplied tuples? dictionaries?"""
-    path = genome.split("/")
-    # path = re.search('(.+)\/(.+)\/(.+?)$', genome)
-    # print path
-    # print path.group(2)
+    global path
+    pathString = genome.split("/")
+    # Create the necessary variables from the supplied strings
     gene = fasta.split('/')[-1]  # split file from path, could use os.path.split
     genename = gene.split('.')[0]
-    genomename = path[-1].split('.')[0]
-    # print genomename
+    genomename = pathString[-1].split('.')[0]
     # Create the out variable containing the path and name of BLAST output file
-    tmpPath = path[0]
-    # tmpPath = "%s/%s" % (path.group(1), path.group(2))
-    make_path("%s/tmp" % tmpPath)
-    out = "%s/tmp/%s.%s.xml" % (tmpPath, genomename, genename)  # Changed from dictionary to tuple
+    tmpPath = "%stmp" % path
+    make_path(tmpPath)
+    out = "%s/%s.%s.xml" % (tmpPath, genomename, genename)  # Changed from dictionary to tuple
     # Return the parsed variables
     return path, gene, genename, genomename, out
 
@@ -371,6 +368,7 @@ def blaster(path, cutoff, sequencePath, targetPath):
     # Quality test genes are optional, so only run the qualityGenes if the folder exists
     if qualityGenes:
         makedbthreads(qualityGenes)
+    # There appears to be a race condition going on with the creation of the BLAST databases and the running of BLAST.
     print "\n[%s] BLAST database(s) created" % (time.strftime("%H:%M:%S"))
     print "[%s] Now performing and parsing BLAST database searches" % (time.strftime("%H:%M:%S"))
     sys.stdout.write('[%s] ' % (time.strftime("%H:%M:%S")))
@@ -385,6 +383,7 @@ def blaster(path, cutoff, sequencePath, targetPath):
     types["query"] = queryGenes
     if qualityGenes:
         types["quality"] = qualityGenes
+    # print json.dumps(plusdict, sort_keys=True, indent=4, separators=(',', ': '))
     csvheader = ''
     # Loop through the analysis types, and make outputs as required
     for analysisType in types:
