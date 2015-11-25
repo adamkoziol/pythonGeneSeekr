@@ -40,15 +40,6 @@ def helper(genes, targets, out, cuttoff, threads):
     dump(result.plus, open("%s/MLST-gene_results_%s.json" % (out, time.strftime("%Y.%m.%d.%H.%M.%S")), 'w'),
          sort_keys=True, indent=4, separators=(',', ': '))
 
-if __name__ == '__main__':
-    from glob import glob
-    from json import dumps
-    rmlst = ['/Volumes/freenas-1/akoziol/Pipeline_development/rMLST/rmlst.fasta']
-    genomes = glob('/Volumes/freenas-1/akoziol/WGS_Spades/2015-11-16/BestAssemblies/*.fasta')
-    test = GeneSeeker(rmlst, genomes)
-    test.mpblast(100)
-    print dumps(test.plus, sort_keys=True, indent=4, separators=(',', ': '))
-    test.csvwriter('/Volumes/freenas-1/akoziol/WGS_Spades/2015-11-16/', 'rMLST')
 
 if __name__ == '__main__':
     from argparse import ArgumentParser
